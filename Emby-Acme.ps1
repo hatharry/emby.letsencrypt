@@ -14,7 +14,7 @@ if (-not (Get-ACMEVault)){
 try {
     (Get-ACMERegistration).Contacts
 } catch {
-    New-ACMERegistration -Contacts mailto:somebody@example.org -AcceptTos
+    New-ACMERegistration -Contacts "mailto:$(Read-Host -Prompt 'Enter email address')" -AcceptTos
 }
     
 try {
