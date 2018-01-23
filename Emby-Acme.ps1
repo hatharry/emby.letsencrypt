@@ -16,13 +16,22 @@ try {
 } catch {
     New-ACMERegistration -Contacts "mailto:$(Read-Host -Prompt 'Enter email address')" -AcceptTos
 }
-    
-try {
-    $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Emby\Parameters").Application
+
+$serviceName = (Get-Service | Where-Object {$_.name -match "emby"}).name
+if ($serviceName.Length -eq 0){
+    $appLocation = Read-Host -Prompt "Emby exe location"
+    if ($appLocation.Length -eq 0){
+        throw "Unknown Location"
+    }
     $location = (Get-Item $appLocation).Directory.Parent.FullName
-} catch {
-    $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\Emby").ImagePath.split("`"")[1]
-    $location = (Get-Item $appLocation).Directory.Parent.FullName
+} else {
+    try {
+        $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName\Parameters").Application
+        $location = (Get-Item $appLocation).Directory.Parent.FullName
+    } catch {
+        $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName").ImagePath.split("`"")[1]
+        $location = (Get-Item $appLocation).Directory.Parent.FullName
+    }
 }
 
 $serverConfiguration = ([xml](Get-Content "$location\config\system.xml")).ServerConfiguration
