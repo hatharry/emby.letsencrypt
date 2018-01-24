@@ -17,7 +17,7 @@ try {
     New-ACMERegistration -Contacts "mailto:$(Read-Host -Prompt 'Enter email address')" -AcceptTos
 }
 
-$serviceName = (Get-Service | Where-Object {$_.name -match "emby"}).name
+$serviceName = (Get-Service | Where-Object {$_.name -match "emby"} | Select-Object -first 1).name
 if ($serviceName.Length -eq 0){
     $appLocation = Read-Host -Prompt "Emby exe location"
     if ($appLocation.Length -eq 0){
