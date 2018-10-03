@@ -33,8 +33,16 @@ if ($serviceName.Length -eq 0){
         $location = (Get-Item $appLocation).Directory.Parent.FullName
     }
 }
-
-$serverConfiguration = ([xml](Get-Content "$location\config\system.xml")).ServerConfiguration
+#system.xml seems to have a new location -- check new than old than throw
+if (Test-Path "$location\programdata\config\system.xml"){
+    $serverConfiguration = ([xml](Get-Content "$location\programdata\config\system.xml")).ServerConfiguration
+    }
+elseif (Test-Path "$location\config\system.xml"){
+    $serverConfiguration = ([xml](Get-Content "$location\config\system.xml")).ServerConfiguration
+    }
+else {
+    throw ("Cannot find system.xml at either "+$location+"\programdata\config\system.xml or "+$location+"\config\system.xml")
+}
 $address = $serverConfiguration.WanDdns
 $alias = "emby-$($address.Split(".")[0])-$(get-date -format yyyy-MM-dd--HH-mm)"
 
