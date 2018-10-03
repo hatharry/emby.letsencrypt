@@ -23,7 +23,16 @@ if ($serviceName.Length -eq 0){
     if ($appLocation.Length -eq 0){
         throw "Unknown Location"
     }
-    $location = (Get-Item $appLocation).Directory.Parent.FullName
+    #Test if appLocation specified is embyserver.exe or the folder that embyserver.exe is in.
+    if (Test-Path -Path $appLocation -PathType Leaf){  
+        $location = (Get-Item $appLocation).Directory.Parent.FullName  #is File
+    }
+    elseif (Test-Path -Path $appLocation -PathType Container){
+        $location = (Get-Item $appLocation).Parent.FullName #is Folder
+    }
+    else {
+        throw ("Cannot locate file or folder named", $appLocation)
+    }
 } else {
     try {
         $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName\Parameters").Application
