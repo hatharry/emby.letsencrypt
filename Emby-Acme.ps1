@@ -23,7 +23,16 @@ if ($serviceName.Length -eq 0){
     if ($appLocation.Length -eq 0){
         throw "Unknown Location"
     }
-    $location = (Get-Item $appLocation).Directory.Parent.FullName
+    #Test if appLocation specified is embyserver.exe or the folder that embyserver.exe is in.
+    if (Test-Path -Path $appLocation -PathType Leaf){  
+        $location = (Get-Item $appLocation).Directory.Parent.FullName  #is File
+    }
+    elseif (Test-Path -Path $appLocation -PathType Container){
+        $location = (Get-Item $appLocation).Parent.FullName #is Folder
+    }
+    else {
+        throw ("Cannot locate file or folder named", $appLocation)
+    }
 } else {
     try {
         $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName\Parameters").Application
@@ -33,8 +42,16 @@ if ($serviceName.Length -eq 0){
         $location = (Get-Item $appLocation).Directory.Parent.FullName
     }
 }
-
-$serverConfiguration = ([xml](Get-Content "$location\config\system.xml")).ServerConfiguration
+#system.xml seems to have a new location -- check new than old than throw
+if (Test-Path "$location\programdata\config\system.xml"){
+    $serverConfiguration = ([xml](Get-Content "$location\programdata\config\system.xml")).ServerConfiguration
+    }
+elseif (Test-Path "$location\config\system.xml"){
+    $serverConfiguration = ([xml](Get-Content "$location\config\system.xml")).ServerConfiguration
+    }
+else {
+    throw ("Cannot find system.xml at either "+$location+"\programdata\config\system.xml or "+$location+"\config\system.xml")
+}
 $address = $serverConfiguration.WanDdns
 $alias = "emby-$($address.Split(".")[0])-$(get-date -format yyyy-MM-dd--HH-mm)"
 
