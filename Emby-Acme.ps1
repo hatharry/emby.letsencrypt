@@ -1,4 +1,4 @@
-﻿#requires –runasadministrator
+﻿#requires -runasadministrator
 $ErrorActionPreference = "Stop"
 
 Install-PackageProvider -Name NuGet -Force
