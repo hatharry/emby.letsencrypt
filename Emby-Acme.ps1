@@ -1,23 +1,14 @@
 ﻿#requires -runasadministrator
 $ErrorActionPreference = "Stop"
-
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Install-PackageProvider -Name NuGet -Force
-Install-Module -Name ACMESharp.Providers.IIS -Force
-Import-Module ACMESharp
-Enable-ACMEExtensionModule -ModuleName ACMESharp.Providers.IIS -ErrorAction SilentlyContinue
+Install-Module -Name Posh-ACME -Scope AllUsers -Force
 
-if (-not (Get-ACMEVault)) {
-    Initialize-ACMEVault
+if (-not (Get-PAAccount | Select-Object -first 1).Contact) {
+    New-PAAccount -AcceptTOS -Contact "$(Read-Host -Prompt 'Enter email address')"
 }
 
-try {
-    (Get-ACMERegistration).Contacts
-}
-catch {
-    New-ACMERegistration -Contacts "mailto:$(Read-Host -Prompt 'Enter email address')" -AcceptTos
-}
-
-if ($serviceName = (Get-Service | Where-Object {$_.name -match "emby"} | Select-Object -first 1).name) {
+if ($serviceName = (Get-Service | Where-Object { $_.name -match "emby" } | Select-Object -first 1).name) {
     $appLocation = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName\Parameters").Application
     $location = (Get-Item $appLocation).Directory.Parent.FullName
 }
@@ -54,88 +45,20 @@ $address = $serverConfiguration.WanDdns
 if ($address.Length -eq 0) {
     throw "Domain name not found in emby config"
 }
-$alias = "emby-$($address.Split(".")[0])-$(get-date -format yyyy-MM-dd--HH-mm)"
 
-if ((Get-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole).State -ne "Enabled") {
-    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole
-}
-    
-if ((Get-WebConfiguration -filter /system.webServer/handlers -PSPath IIS:\ -Location 'Default Web Site' -metadata).metadata.overrideMode -ne 'Allow') {
-    Set-WebConfiguration -filter /system.webServer/handlers -PSPath IIS:\ -Location 'Default Web Site' -metadata overrideMode -value Allow
-}
+New-PAOrder $address -PfxPass "" -Force
 
-function New-Identifiter {
-    New-ACMEIdentifier -Dns $address -Alias $alias
-    Complete-ACMEChallenge $alias -ChallengeType http-01 -Handler iis -HandlerParameters @{ WebSiteRef = 'Default Web Site' }
-    Submit-ACMEChallenge $alias -ChallengeType http-01
-    $i = 0
-    do {
-        $identinfo = (Update-ACMEIdentifier $alias -ChallengeType http-01).Challenges | Where-Object {$_.Status -eq "valid"}
-        $i++
-        Write-Progress "Completing Identifiter" -PercentComplete ($i * 10)
-        Start-Sleep 1
-        if ($i -ge 10) {
-            throw "Did not receive a completed Identifiter"
-        }
-    } until($identinfo.Length -ne 0)
-    "Valid Identifier: $alias"
-}
+Invoke-HttpChallengeListener -Verbose
 
-function New-Certificate {
-    New-ACMECertificate $alias -Generate -Alias $alias
-    Submit-ACMECertificate $alias
-    $i = 0
-    do {
-        $certinfo = Update-AcmeCertificate $alias
-        $i++
-        Write-Progress "Completing Certificate" -PercentComplete ($i * 10)
-        Start-Sleep 1
-        if ($i -ge 10) {
-            throw "Did not receive a completed certificate"
-        }
-    } until($certinfo.SerialNumber -ne "")
-    "Valid Certificate: $alias"
-}
-
-try {
-    $Identifiers = Get-ACMEIdentifier 
-}
-catch {
-    continue
-}
-
-$validIdentifiers = @()
-ForEach ($Identifier in $Identifiers) {
-    if ($Identifier.Dns -eq $address) {
-        try {
-            $vaildIdentifier = (Update-ACMEIdentifier $Identifier.Alias -ChallengeType http-01).Challenges | Where-Object {$_.Status -eq "valid"}
-        }
-        catch {
-            continue
-        }
-        if ($vaildIdentifier.Length -ne 0) {
-            $validIdentifiers += $Identifier.Alias
-        }
-    }
-}
-if ($validIdentifiers.Length -ne 0) {
-    $alias = $validIdentifiers[0]
-    "Valid Identifier: $alias"
-}
-else {
-    New-Identifiter
-}
-
-try {
-    Get-ACMECertificate $alias
-}
-catch {
-    New-Certificate
-}
+New-PACertificate $address
 
 $certPath = $serverConfiguration.CertificatePath
 if ($certPath.Length -eq 0) {
     $certPath = "$location\programdata\$address.pfx"
 }
 
-Get-ACMECertificate $alias -ExportPkcs12 $certPath -Overwrite
+$pfxFile = (Get-PACertificate $address | Where-Object { $_.NotAfter -gt (Get-Date) } | Select-Object -first 1).PfxFile
+
+if ($pfxFile.Length -gt 0) {
+    Copy-Item $pfxFile $certPath -Force
+}
