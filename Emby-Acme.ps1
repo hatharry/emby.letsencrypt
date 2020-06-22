@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 Install-PackageProvider -Name NuGet -Force
 Install-Module -Name Posh-ACME -Scope AllUsers -Force
 
+Set-PAServer LE_PROD
 if (-not (Get-PAAccount | Select-Object -first 1).Contact) {
     New-PAAccount -AcceptTOS -Contact "$(Read-Host -Prompt 'Enter email address')"
 }
